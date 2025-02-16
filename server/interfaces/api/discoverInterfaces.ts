@@ -10,6 +10,7 @@ export interface WatchlistItem {
   tmdbId: number;
   mediaType: 'movie' | 'tv';
   title: string;
+  watchProgress?: number;
 }
 
 export interface WatchlistResponse {

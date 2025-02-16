@@ -353,6 +353,7 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
               key={`collection-movie-${title.id}`}
               id={title.id}
               isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+              watchProgress={title.watchProgress}
               image={title.posterPath}
               status={title.mediaInfo?.status}
               summary={title.overview}

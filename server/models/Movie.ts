@@ -4,6 +4,7 @@ import type {
   TmdbProductionCompany,
 } from '@server/api/themoviedb/interfaces';
 import type Media from '@server/entity/Media';
+import type { WatchHistory } from '@server/entity/WatchHistory';
 import type {
   Cast,
   Crew,
@@ -86,6 +87,7 @@ export interface MovieDetails {
   watchProviders?: WatchProviders[];
   keywords: Keyword[];
   onUserWatchlist?: boolean;
+  watchProgress: number;
 }
 
 export const mapProductionCompany = (
@@ -103,7 +105,8 @@ export const mapProductionCompany = (
 export const mapMovieDetails = (
   movie: TmdbMovieDetails,
   media?: Media,
-  userWatchlist?: boolean
+  userWatchlist?: boolean,
+  watchHistory?: WatchHistory
 ): MovieDetails => ({
   id: movie.id,
   adult: movie.adult,
@@ -151,4 +154,5 @@ export const mapMovieDetails = (
     name: keyword.name,
   })),
   onUserWatchlist: userWatchlist,
+  watchProgress: watchHistory?.watchProgress ?? 0,
 });

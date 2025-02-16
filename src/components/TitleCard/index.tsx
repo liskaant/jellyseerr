@@ -4,6 +4,7 @@ import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
 import Tooltip from '@app/components/Common/Tooltip';
+import WatchProgressInidcator from '@app/components/Common/WatchProgressIndicator';
 import RequestModal from '@app/components/RequestModal';
 import ErrorCard from '@app/components/TitleCard/ErrorCard';
 import Placeholder from '@app/components/TitleCard/Placeholder';
@@ -42,6 +43,7 @@ interface TitleCardProps {
   canExpand?: boolean;
   inProgress?: boolean;
   isAddedToWatchlist?: number | boolean;
+  watchProgress?: number;
   mutateParent?: () => void;
 }
 
@@ -64,6 +66,7 @@ const TitleCard = ({
   status,
   mediaType,
   isAddedToWatchlist = false,
+  watchProgress = 0,
   inProgress = false,
   canExpand = false,
   mutateParent,
@@ -423,6 +426,9 @@ const TitleCard = ({
               </div>
             )}
           </div>
+          {!showDetail && (
+            <WatchProgressInidcator watchProgress={watchProgress} />
+          )}
           <Transition
             as={Fragment}
             show={isUpdating}

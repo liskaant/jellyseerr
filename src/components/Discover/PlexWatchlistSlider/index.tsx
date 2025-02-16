@@ -68,6 +68,7 @@ const PlexWatchlistSlider = () => {
             tmdbId={item.tmdbId}
             type={item.mediaType}
             isAddedToWatchlist={true}
+            watchProgress={item.watchProgress}
           />
         ))}
       />

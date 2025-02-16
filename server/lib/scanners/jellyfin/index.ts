@@ -4,10 +4,13 @@ import TheMovieDb from '@server/api/themoviedb';
 import type { TmdbTvDetails } from '@server/api/themoviedb/interfaces';
 import { MediaStatus, MediaType } from '@server/constants/media';
 import { MediaServerType } from '@server/constants/server';
+import { UserType } from '@server/constants/user';
 import { getRepository } from '@server/datasource';
+import { Episode } from '@server/entity/Episode';
 import Media from '@server/entity/Media';
 import Season from '@server/entity/Season';
 import { User } from '@server/entity/User';
+import { WatchHistory } from '@server/entity/WatchHistory';
 import type { Library } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -34,6 +37,7 @@ class JellyfinScanner {
   private items: JellyfinLibraryItem[] = [];
   private progress = 0;
   private libraries: Library[];
+  private users: User[];
   private currentLibrary: Library;
   private running = false;
   private isRecentOnly = false;
@@ -57,6 +61,7 @@ class JellyfinScanner {
   }
 
   private async processMovie(jellyfinitem: JellyfinLibraryItem) {
+    const settings = getSettings();
     const mediaRepository = getRepository(Media);
 
     try {
@@ -159,6 +164,12 @@ class JellyfinScanner {
               `Title already exists and no new media types found ${metadata.Name}`
             );
           }
+
+          if (settings.jellyfin.watchHistory !== 'disabled') {
+            for (const user of this.users) {
+              await this.processMovieWatchHistory(user, existing, metadata);
+            }
+          }
         } else {
           newMedia.status =
             hasOtherResolution || (!this.enable4kMovie && has4k)
@@ -178,6 +189,12 @@ class JellyfinScanner {
             has4k && this.enable4kMovie ? metadata.Id : null;
           await mediaRepository.save(newMedia);
           this.log(`Saved ${metadata.Name}`);
+
+          if (settings.jellyfin.watchHistory !== 'disabled') {
+            for (const user of this.users) {
+              await this.processMovieWatchHistory(user, newMedia, metadata);
+            }
+          }
         }
       });
     } catch (e) {
@@ -193,7 +210,9 @@ class JellyfinScanner {
   }
 
   private async processShow(jellyfinitem: JellyfinLibraryItem) {
+    const settings = getSettings();
     const mediaRepository = getRepository(Media);
+    const historyRepository = getRepository(WatchHistory);
 
     let tvShow: TmdbTvDetails | null = null;
 
@@ -246,6 +265,7 @@ class JellyfinScanner {
           const media = await this.getExisting(tvShow.id, MediaType.TV);
 
           const newSeasons: Season[] = [];
+          const removedEpisodes: Set<Episode> = new Set();
 
           const currentStandardSeasonAvailable = (
             media?.seasons.filter(
@@ -264,9 +284,15 @@ class JellyfinScanner {
               (md) => Number(md.IndexNumber) === season.season_number
             );
 
-            const existingSeason = media?.seasons.find(
+            const existingSeason: Season | undefined = media?.seasons.find(
               (es) => es.seasonNumber === season.season_number
             );
+
+            for (const episode of (await existingSeason?.episodes) ?? []) {
+              removedEpisodes.add(episode);
+            }
+
+            const newEpisodes: Episode[] = [];
 
             // Check if we found the matching season and it has all the available episodes
             if (matchedJellyfinSeason) {
@@ -313,6 +339,40 @@ class JellyfinScanner {
                     });
                   });
                 }
+
+                const existing = await existingSeason?.episode(
+                  episode.IndexNumber,
+                  episode.IndexNumberEnd
+                );
+
+                if (existing) {
+                  removedEpisodes.delete(existing);
+                }
+
+                const toBeAdded = newEpisodes.find(
+                  (s) =>
+                    s.showTmdbId === tvShow?.id &&
+                    s.seasonNumber === season.season_number &&
+                    s.episodeNumberStart === episode.IndexNumber
+                );
+
+                if (
+                  !existing &&
+                  !toBeAdded &&
+                  episode.IndexNumber &&
+                  episode.IndexNumber <= season.episode_count
+                ) {
+                  newEpisodes.push(
+                    new Episode({
+                      showTmdbId: tvShow?.id,
+                      season: existingSeason,
+                      seasonNumber: season.season_number,
+                      episodeNumberStart: episode.IndexNumber,
+                      episodeNumberEnd:
+                        episode.IndexNumberEnd ?? episode.IndexNumber,
+                    })
+                  );
+                }
               }
 
               if (
@@ -333,6 +393,12 @@ class JellyfinScanner {
               }
 
               if (existingSeason) {
+                existingSeason.showTmdbId = tvShow?.id;
+                existingSeason.episodes = Promise.resolve([
+                  ...(await existingSeason.episodes),
+                  ...newEpisodes,
+                ]);
+
                 // These ternary statements look super confusing, but they are simply
                 // setting the status to AVAILABLE if all of a type is there, partially if some,
                 // and then not modifying the status if there are 0 items
@@ -353,7 +419,9 @@ class JellyfinScanner {
               } else {
                 newSeasons.push(
                   new Season({
+                    showTmdbId: tvShow?.id,
                     seasonNumber: season.season_number,
+                    episodes: Promise.resolve(newEpisodes),
                     // This ternary is the same as the ones above, but it just falls back to "UNKNOWN"
                     // if we dont have any items for the season
                     status:
@@ -370,6 +438,25 @@ class JellyfinScanner {
                         : MediaStatus.UNKNOWN,
                   })
                 );
+              }
+            }
+          }
+
+          // Processing of watch history when an episode (or entire season really)
+          // gets removed from Jellyfin. In that case we need to mark all the episode's
+          // watch histories as "manual" to possibly re-import them into Jellyfin
+          // if the episode ever gets re-added at some point.
+          //
+          // The removal of en entire show (or a movie for that matter) will
+          // not trigger this. Souch removals are handeled duting
+          // the Availability Sync task, since it processes removals of media.
+          if (settings.jellyfin.watchHistory !== 'disabled') {
+            for (const episode of removedEpisodes) {
+              for (const history of await episode.watchHistory) {
+                if (history.source === 'jellyfin') {
+                  history.source = 'manual';
+                  await historyRepository.save(history);
+                }
               }
             }
           }
@@ -472,6 +559,12 @@ class JellyfinScanner {
                 : MediaStatus.UNKNOWN;
             await mediaRepository.save(media);
             this.log(`Updating existing title: ${tvShow.name}`);
+
+            if (settings.jellyfin.watchHistory !== 'disabled') {
+              for (const user of this.users) {
+                await this.processShowWatchHistory(user, media, metadata);
+              }
+            }
           } else {
             const newMedia = new Media({
               mediaType: MediaType.TV,
@@ -501,6 +594,12 @@ class JellyfinScanner {
             });
             await mediaRepository.save(newMedia);
             this.log(`Saved ${tvShow.name}`);
+
+            if (settings.jellyfin.watchHistory !== 'disabled') {
+              for (const user of this.users) {
+                await this.processShowWatchHistory(user, newMedia, metadata);
+              }
+            }
           }
         });
       } else {
@@ -575,12 +674,343 @@ class JellyfinScanner {
     }
   }
 
+  private async processMovieWatchHistory(
+    user: User,
+    media: Media | null,
+    item: JellyfinLibraryItem
+  ) {
+    const settings = getSettings();
+    const client = this.jellyfinClient(user);
+    const historyRepository = getRepository(WatchHistory);
+
+    if (!media) {
+      const metadata = await this.jfClient.getItemData(item.Id);
+      media = await this.getExisting(
+        Number(metadata?.ProviderIds.Tmdb),
+        MediaType.MOVIE
+      );
+    }
+
+    if (!media) return;
+
+    const userData = await client.getItemUserData(item.Id);
+    const history = await media.watchHistoryOf(user.id);
+
+    const watchFraction = (userData?.PlayedPercentage ?? 0) / 100;
+    const watchProgress =
+      watchFraction === 0 && userData?.Played
+        ? 1
+        : Number(watchFraction.toFixed(3));
+
+    if (['import', 'full'].includes(settings.jellyfin.watchHistory)) {
+      if (history) {
+        if (history.source !== 'jellyfin') {
+          this.log(
+            `Skipping watch history of user ${user.displayName} for ${item.Name} (${item.Type}), source does not match`
+          );
+        } else if (history.watchProgress !== watchProgress) {
+          history.watchProgress = watchProgress;
+          await historyRepository.save(history);
+
+          this.log(
+            `Updated watch history of user ${user.displayName} for ${item.Name} (${item.Type})`
+          );
+        }
+      } else if (watchProgress !== 0) {
+        await historyRepository.save(
+          new WatchHistory({ user, media, watchProgress, source: 'jellyfin' })
+        );
+
+        this.log(
+          `Inserted watch history of user ${user.displayName} for ${item.Name} (${item.Type})`
+        );
+      }
+    }
+
+    if (['export', 'full'].includes(settings.jellyfin.watchHistory)) {
+      if (history && history.source !== 'jellyfin') {
+        if (history.watchProgress !== watchProgress) {
+          await client.setItemUserData(item.Id, {
+            PlaybackPositionTicks:
+              history.watchProgress === 1
+                ? 0
+                : history.watchProgress * (item.RunTimeTicks ?? 0),
+            Played: history.watchProgress === 1 || (userData?.Played ?? false),
+          });
+
+          this.log(
+            `Pushed Jellyfin watch history of user ${user.displayName} for ${item.Name} (${item.Type})`
+          );
+        }
+
+        if (settings.jellyfin.watchHistory === 'full') {
+          history.source = 'jellyfin';
+          await historyRepository.save(history);
+        }
+      }
+    }
+  }
+
+  private async processShowWatchHistory(
+    user: User,
+    media: Media,
+    item: JellyfinLibraryItem
+  ) {
+    const client = this.jellyfinClient(user);
+
+    const jellyfinSeasons = await client.getSeasons(item.Id);
+
+    for (const season of media.seasons) {
+      const jellyfinSeason = jellyfinSeasons.find(
+        (js) => js.IndexNumber === season.seasonNumber
+      );
+
+      if (!jellyfinSeason) return;
+
+      const jellyfinEpisodes = await client.getEpisodes(
+        item.Id,
+        jellyfinSeason.Id
+      );
+
+      for (const episode of await season.episodes) {
+        const jellyfinEpisode = jellyfinEpisodes.find(
+          (je) =>
+            episode.episodeNumberStart === je.IndexNumber &&
+            episode.episodeNumberEnd === (je.IndexNumberEnd ?? je.IndexNumber)
+        );
+
+        if (!jellyfinEpisode) return;
+
+        await this.processEpisodeWatchHistory(user, episode, jellyfinEpisode);
+      }
+    }
+
+    await this.recalculateShowWatchHistory(user, media.tmdbId);
+  }
+
+  private async processEpisodeWatchHistory(
+    user: User,
+    episode: Episode | null,
+    item: JellyfinLibraryItem
+  ): Promise<Media | undefined> {
+    const settings = getSettings();
+    const client = this.jellyfinClient(user);
+    const historyRepository = getRepository(WatchHistory);
+    const episodeRepository = getRepository(Episode);
+
+    if (!episode && item.SeriesId) {
+      const show = await this.jfClient.getItemData(item.SeriesId);
+      episode = await episodeRepository.findOne({
+        where: {
+          showTmdbId: Number(show?.ProviderIds.Tmdb),
+          seasonNumber: item.ParentIndexNumber,
+          episodeNumberStart: item.IndexNumber,
+          episodeNumberEnd: item.IndexNumberEnd ?? item.IndexNumber,
+        },
+      });
+    }
+
+    if (!episode) return;
+
+    const userData = await client.getItemUserData(item.Id);
+    const history = await episode.watchHistoryOf(user.id);
+
+    const watchFraction = (userData?.PlayedPercentage ?? 0) / 100;
+    const watchProgress =
+      watchFraction === 0 && userData?.Played
+        ? 1
+        : Number(watchFraction.toFixed(3));
+
+    if (['import', 'full'].includes(settings.jellyfin.watchHistory)) {
+      if (history) {
+        if (history.source !== 'jellyfin') {
+          this.log(
+            `Skipping watch history of user ${user.displayName} for ${item.Name} (${item.Type}), source does not match`
+          );
+        } else if (history.watchProgress !== watchProgress) {
+          history.watchProgress = watchProgress;
+          await historyRepository.save(history);
+
+          this.log(
+            `Updated watch history of user ${user.displayName} for ${item.Name} (${item.Type})`
+          );
+
+          if (episode.season) return await episode.season.media;
+        }
+      } else if (watchProgress !== 0) {
+        await historyRepository.save(
+          new WatchHistory({ user, episode, watchProgress, source: 'jellyfin' })
+        );
+
+        this.log(
+          `Inserted watch history of user ${user.displayName} for ${item.Name} (${item.Type})`
+        );
+
+        if (episode.season) return await episode.season.media;
+      }
+    }
+
+    if (['export', 'full'].includes(settings.jellyfin.watchHistory)) {
+      if (history && history.source !== 'jellyfin') {
+        if (history.watchProgress !== watchProgress) {
+          await client.setItemUserData(item.Id, {
+            PlaybackPositionTicks:
+              history.watchProgress === 1
+                ? 0
+                : history.watchProgress * (item.RunTimeTicks ?? 0),
+            Played: history.watchProgress === 1 || (userData?.Played ?? false),
+          });
+
+          this.log(
+            `Pushed Jellyfin watch history of user ${user.displayName} for ${item.Name} (${item.Type})`
+          );
+        }
+
+        if (settings.jellyfin.watchHistory === 'full') {
+          history.source = 'jellyfin';
+          await historyRepository.save(history);
+        }
+      }
+    }
+  }
+
+  private async processRecentItems(user: User, items: JellyfinLibraryItem[]) {
+    const modifiedShows: Set<Media> = new Set();
+
+    await Promise.all(
+      items.map(async (item) => {
+        if (item.Type === 'Movie') {
+          await this.processMovieWatchHistory(user, null, item);
+        } else if (item.Type === 'Episode') {
+          const show = await this.processEpisodeWatchHistory(user, null, item);
+          if (show) modifiedShows.add(show);
+        }
+      })
+    );
+
+    for (const show of modifiedShows) {
+      await this.recalculateShowWatchHistory(user, show.tmdbId);
+    }
+  }
+
+  private async recalculateShowWatchHistory(user: User, tmdbId: number) {
+    const historyRepository = getRepository(WatchHistory);
+
+    const media = await this.getExisting(tmdbId, MediaType.TV);
+    if (!media) return;
+
+    const show = await this.tmdb.getTvShow({ tvId: media.tmdbId });
+    if (!show) return;
+
+    const allHistory: WatchHistory[] = [];
+
+    for (const season of media.seasons) {
+      for (const episode of await season.episodes) {
+        const history = await episode.watchHistoryOf(user.id);
+        if (history) allHistory.push(history);
+      }
+    }
+
+    for (const season of show.seasons) {
+      const existing = media.seasons.find(
+        (s) => s.seasonNumber === season.season_number
+      );
+      if (!existing) continue;
+      const history = await existing.watchHistoryOf(user.id);
+
+      const watchedEpisodes = allHistory
+        .filter(
+          (h) => h.episode && h.episode.seasonNumber === season.season_number
+        )
+        .reduce((c, h) => c + h.watchProgress, 0);
+      const watchRatio =
+        season.episode_count === 0 ? 0 : watchedEpisodes / season.episode_count;
+      const watchProgress = Number(watchRatio.toFixed(3));
+
+      if (history) {
+        if (history.source !== 'calculated') {
+          this.log(
+            `Skipping watch history of user ${user.displayName} for ${season.name} of ${show.name}, source does not match`
+          );
+        } else if (history.watchProgress !== watchProgress) {
+          history.watchProgress = watchProgress;
+          await historyRepository.save(history);
+
+          this.log(
+            `Updated watch history of user ${user.displayName} for ${season.name} of ${show.name}`
+          );
+        }
+      } else if (watchProgress !== 0) {
+        await historyRepository.save(
+          new WatchHistory({
+            user,
+            season: existing,
+            watchProgress,
+            source: 'calculated',
+          })
+        );
+
+        this.log(
+          `Inserted watch history of user ${user.displayName} for ${season.name} of ${show.name}`
+        );
+      }
+    }
+
+    const history = await media.watchHistoryOf(user.id);
+
+    const totalEpisodes = show.seasons
+      .filter((s) => s.season_number !== 0)
+      .reduce((c, s) => c + s.episode_count, 0);
+    const watchedEpisodes = allHistory
+      .filter((h) => h.episode)
+      .reduce((c, h) => c + h.watchProgress, 0);
+    const watchRatio =
+      totalEpisodes === 0 ? 0 : watchedEpisodes / totalEpisodes;
+    const watchProgress = Number(watchRatio.toFixed(3));
+
+    if (history) {
+      if (history.source !== 'calculated') {
+        this.log(
+          `Skipping watch history of user ${user.displayName} for ${show.name}, source does not match`
+        );
+      } else if (history.watchProgress !== watchProgress) {
+        history.watchProgress = watchProgress;
+        await historyRepository.save(history);
+
+        this.log(
+          `Updated watch history of user ${user.displayName} for ${show.name}`
+        );
+      }
+    } else if (watchProgress !== 0) {
+      await historyRepository.save(
+        new WatchHistory({ user, media, watchProgress, source: 'calculated' })
+      );
+
+      this.log(
+        `Inserted watch history of user ${user.displayName} for ${show.name}`
+      );
+    }
+  }
+
   private log(
     message: string,
     level: 'info' | 'error' | 'debug' | 'warn' = 'debug',
     optional?: Record<string, unknown>
   ): void {
     logger[level](message, { label: 'Jellyfin Sync', ...optional });
+  }
+
+  private jellyfinClient(user: User): JellyfinAPI {
+    const settings = getSettings();
+
+    const client = new JellyfinAPI(
+      getHostname(),
+      settings.jellyfin.apiKey,
+      user.jellyfinDeviceId
+    );
+
+    client.setUserId(user.jellyfinUserId ?? '');
+    return client;
   }
 
   public async run(): Promise<void> {
@@ -612,17 +1042,16 @@ class JellyfinScanner {
         return this.log('No admin configured. Jellyfin sync skipped.', 'warn');
       }
 
-      this.jfClient = new JellyfinAPI(
-        getHostname(),
-        settings.jellyfin.apiKey,
-        admin.jellyfinDeviceId
-      );
-
-      this.jfClient.setUserId(admin.jellyfinUserId ?? '');
+      this.jfClient = this.jellyfinClient(admin);
 
       this.libraries = settings.jellyfin.libraries.filter(
         (library) => library.enabled
       );
+
+      this.users = await userRepository
+        .createQueryBuilder('user')
+        .where('user.userType = :userType', { userType: UserType.JELLYFIN })
+        .getMany();
 
       this.enable4kMovie = settings.radarr.some((radarr) => radarr.is4k);
       if (this.enable4kMovie) {
@@ -663,6 +1092,14 @@ class JellyfinScanner {
           });
 
           await this.loop({ sessionId });
+
+          if (['import', 'full'].includes(settings.jellyfin.watchHistory)) {
+            for (const user of this.users) {
+              const client = this.jellyfinClient(user);
+              const items = await client.getRecentlyPlayed(library.id);
+              await this.processRecentItems(user, items);
+            }
+          }
         }
       } else {
         for (const library of this.libraries) {

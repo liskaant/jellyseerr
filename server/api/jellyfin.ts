@@ -59,6 +59,14 @@ export interface JellyfinLibraryItem {
   IndexNumberEnd?: number;
   ParentIndexNumber?: number;
   MediaType: string;
+  RunTimeTicks?: number;
+  UserData?: JellyfinLibraryItemUserData;
+}
+
+export interface JellyfinLibraryItemUserData {
+  PlaybackPositionTicks?: number;
+  PlayedPercentage?: number;
+  Played?: boolean;
 }
 
 export interface JellyfinMediaStream {
@@ -357,6 +365,31 @@ class JellyfinAPI extends ExternalAPI {
     }
   }
 
+  public async getRecentlyPlayed(id: string): Promise<JellyfinLibraryItem[]> {
+    try {
+      const itemResponse = await this.get<JellyfinItemsReponse>(`/Users/${this.userId}/Items`, {
+        params: {
+          Limit: '12',
+          ParentId: id,
+          Recursive: 'true',
+          isPlayed: 'true',
+          sortBy: 'DatePlayed',
+          sortOrder: 'Descending',
+          includeItemTypes: 'Movie,Episode',
+        },
+      });
+
+      return itemResponse.Items;
+    } catch (e) {
+      logger.error(
+        'Something went wrong while getting library content from the Jellyfin server',
+        { label: 'Jellyfin API', error: e.cause.message ?? e.cause.statusText }
+      );
+
+      throw new ApiError(e.cause?.status, ApiErrorCode.InvalidAuthToken);
+    }
+  }
+
   public async getItemData(
     id: string
   ): Promise<JellyfinLibraryItemExtended | undefined> {
@@ -381,6 +414,47 @@ class JellyfinAPI extends ExternalAPI {
         { label: 'Jellyfin API', error: e.response?.status }
       );
       throw new ApiError(e.response?.status, ApiErrorCode.InvalidAuthToken);
+    }
+  }
+
+  public async getItemUserData(
+    id: string
+  ): Promise<JellyfinLibraryItemUserData | undefined> {
+    try {
+      const itemResponse = await this.get<any>(
+        `/Users/${this.userId}/Items/${id}/UserData`
+      );
+
+      return itemResponse;
+    } catch (e) {
+      if (availabilitySync.running) {
+        if (e.cause?.status === 500) {
+          return undefined;
+        }
+      }
+
+      logger.error(
+        'Something went wrong while getting item user data from the Jellyfin server',
+        { label: 'Jellyfin API', error: e.cause.message ?? e.cause.statusText }
+      );
+      throw new ApiError(e.cause?.status, ApiErrorCode.InvalidAuthToken);
+    }
+  }
+
+  public async setItemUserData(
+    id: string,
+    userData: JellyfinLibraryItemUserData
+  ) {
+    try {
+      await this.post<any>(`/Users/${this.userId}/Items/${id}/UserData`, {
+        ...userData,
+      });
+    } catch (e) {
+      logger.error(
+        'Something went wrong while setting item user data to the Jellyfin server',
+        { label: 'Jellyfin API', error: e.cause.message ?? e.cause.statusText }
+      );
+      throw new ApiError(e.cause?.status, ApiErrorCode.InvalidAuthToken);
     }
   }
 

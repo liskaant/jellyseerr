@@ -66,6 +66,11 @@ const messages = defineMessages('components.Settings', {
   tip: 'Tip',
   scanbackground:
     'Scanning will run in the background. You can continue the setup process in the meantime.',
+  jellyfinWatchHistory: 'Synchronize watch history',
+  jellyfinWatchHistoryDisabled: 'Disabled',
+  jellyfinWatchHistoryImportOnly: 'Import only',
+  jellyfinWatchHistoryExportOnly: 'Export only',
+  jellyfinWatchHistoryFull: 'Full synchronization',
 });
 
 interface Library {
@@ -455,6 +460,7 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
           urlBase: data?.urlBase || '',
           jellyfinExternalUrl: data?.externalHostname || '',
           jellyfinForgotPasswordUrl: data?.jellyfinForgotPasswordUrl || '',
+          jellyfinWatchHistory: data?.watchHistory || 'import',
           apiKey: data?.apiKey,
         }}
         validationSchema={JellyfinSettingsSchema}
@@ -467,6 +473,7 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
               urlBase: values.urlBase,
               externalHostname: values.jellyfinExternalUrl,
               jellyfinForgotPasswordUrl: values.jellyfinForgotPasswordUrl,
+              watchHistory: values.jellyfinWatchHistory,
               apiKey: values.apiKey,
             } as JellyfinSettings);
 
@@ -669,6 +676,39 @@ const SettingsJellyfin: React.FC<SettingsJellyfinProps> = ({
                         {errors.jellyfinForgotPasswordUrl}
                       </div>
                     )}
+                </div>
+              </div>
+              <div className="form-row">
+                <label htmlFor="jellyfinWatchHistory" className="text-label">
+                  {intl.formatMessage(messages.jellyfinWatchHistory)}
+                </label>
+                <div className="form-input-area">
+                  <div className="form-input-field">
+                    <Field
+                      as="select"
+                      id="jellyfinWatchHistory"
+                      name="jellyfinWatchHistory"
+                    >
+                      <option value="disabled">
+                        {intl.formatMessage(
+                          messages.jellyfinWatchHistoryDisabled
+                        )}
+                      </option>
+                      <option value="import">
+                        {intl.formatMessage(
+                          messages.jellyfinWatchHistoryImportOnly
+                        )}
+                      </option>
+                      <option value="export">
+                        {intl.formatMessage(
+                          messages.jellyfinWatchHistoryExportOnly
+                        )}
+                      </option>
+                      <option value="full">
+                        {intl.formatMessage(messages.jellyfinWatchHistoryFull)}
+                      </option>
+                    </Field>
+                  </div>
                 </div>
               </div>
               <div

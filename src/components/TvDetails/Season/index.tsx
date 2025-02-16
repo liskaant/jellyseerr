@@ -1,6 +1,7 @@
 import AirDateBadge from '@app/components/AirDateBadge';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
+import WatchProgressInidcator from '@app/components/Common/WatchProgressIndicator';
 import defineMessages from '@app/utils/defineMessages';
 import type { SeasonWithEpisodes } from '@server/models/Tv';
 import { useIntl } from 'react-intl';
@@ -56,13 +57,16 @@ const Season = ({ seasonNumber, tvId }: SeasonProps) => {
                   {episode.overview && <p>{episode.overview}</p>}
                 </div>
                 {episode.stillPath && (
-                  <div className="relative aspect-video xl:h-32">
+                  <div className="relative aspect-video overflow-hidden rounded-lg xl:h-32">
                     <CachedImage
                       type="tmdb"
-                      className="rounded-lg object-contain"
+                      className="object-contain"
                       src={`https://image.tmdb.org/t/p/original/${episode.stillPath}`}
                       alt=""
                       fill
+                    />
+                    <WatchProgressInidcator
+                      watchProgress={episode.watchProgress}
                     />
                   </div>
                 )}

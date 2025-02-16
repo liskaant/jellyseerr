@@ -1,6 +1,7 @@
 import type { TmdbCollection } from '@server/api/themoviedb/interfaces';
 import { MediaType } from '@server/constants/media';
 import type Media from '@server/entity/Media';
+import type { WatchHistoryList } from '@server/entity/WatchHistory';
 import { sortBy } from 'lodash';
 import type { MovieResult } from './Search';
 import { mapMovieResult } from './Search';
@@ -16,7 +17,8 @@ export interface Collection {
 
 export const mapCollection = (
   collection: TmdbCollection,
-  media: Media[]
+  media: Media[],
+  watchHistory?: WatchHistoryList
 ): Collection => ({
   id: collection.id,
   name: collection.name,
@@ -28,7 +30,8 @@ export const mapCollection = (
       part,
       media?.find(
         (req) => req.tmdbId === part.id && req.mediaType === MediaType.MOVIE
-      )
+      ),
+      watchHistory
     )
   ),
 });

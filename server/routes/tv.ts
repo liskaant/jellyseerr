@@ -3,6 +3,7 @@ import TheMovieDb from '@server/api/themoviedb';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import { WatchHistoryList } from '@server/entity/WatchHistory';
 import { Watchlist } from '@server/entity/Watchlist';
 import logger from '@server/logger';
 import { mapTvResult } from '@server/models/Search';
@@ -30,7 +31,8 @@ tvRoutes.get('/:id', async (req, res, next) => {
       },
     });
 
-    const data = mapTvDetails(tv, media, onUserWatchlist);
+    const watchHistory = await media?.recWatchHistoryOf(req.user?.id);
+    const data = mapTvDetails(tv, media, onUserWatchlist, watchHistory);
 
     // TMDB issue where it doesnt fallback to English when no overview is available in requested locale.
     if (!data.overview) {
@@ -56,13 +58,23 @@ tvRoutes.get('/:id/season/:seasonNumber', async (req, res, next) => {
   const tmdb = new TheMovieDb();
 
   try {
+    const tv = await tmdb.getTvShow({
+      tvId: Number(req.params.id),
+      language: (req.query.language as string) ?? req.locale,
+    });
+
     const season = await tmdb.getTvSeason({
       tvId: Number(req.params.id),
       seasonNumber: Number(req.params.seasonNumber),
       language: (req.query.language as string) ?? req.locale,
     });
 
-    return res.status(200).json(mapSeasonWithEpisodes(season));
+    const media = await Media.getMedia(Number(req.params.id), MediaType.TV);
+    const watchHistory = await media?.recWatchHistoryOf(req.user?.id);
+
+    return res
+      .status(200)
+      .json(mapSeasonWithEpisodes(tv, season, watchHistory));
   } catch (e) {
     logger.debug('Something went wrong retrieving season', {
       label: 'API',
@@ -92,6 +104,11 @@ tvRoutes.get('/:id/recommendations', async (req, res, next) => {
       results.results.map((result) => result.id)
     );
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
     return res.status(200).json({
       page: results.page,
       totalPages: results.total_pages,
@@ -101,7 +118,8 @@ tvRoutes.get('/:id/recommendations', async (req, res, next) => {
           result,
           media.find(
             (req) => req.tmdbId === result.id && req.mediaType === MediaType.TV
-          )
+          ),
+          watchHistory
         )
       ),
     });
@@ -133,6 +151,11 @@ tvRoutes.get('/:id/similar', async (req, res, next) => {
       results.results.map((result) => result.id)
     );
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
     return res.status(200).json({
       page: results.page,
       totalPages: results.total_pages,
@@ -142,7 +165,8 @@ tvRoutes.get('/:id/similar', async (req, res, next) => {
           result,
           media.find(
             (req) => req.tmdbId === result.id && req.mediaType === MediaType.TV
-          )
+          ),
+          watchHistory
         )
       ),
     });

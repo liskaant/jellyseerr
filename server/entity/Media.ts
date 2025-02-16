@@ -26,6 +26,7 @@ import {
 import Issue from './Issue';
 import { MediaRequest } from './MediaRequest';
 import Season from './Season';
+import { WatchHistory, WatchHistoryList } from './WatchHistory';
 
 @Entity()
 class Media {
@@ -113,6 +114,9 @@ class Media {
 
   @OneToMany(() => Watchlist, (watchlist) => watchlist.media)
   public watchlists: null | Watchlist[];
+
+  @OneToMany(() => WatchHistory, (history: WatchHistory) => history.media)
+  public watchHistory: Promise<WatchHistory[]>;
 
   @OneToMany(() => Season, (season) => season.media, {
     cascade: true,
@@ -370,6 +374,25 @@ class Media {
         );
       }
     }
+  }
+
+  public async watchHistoryOf(
+    userId?: number
+  ): Promise<WatchHistory | undefined> {
+    if (!userId) return undefined;
+    const history = await this.watchHistory;
+    return history.find((h) => h.user.id === userId);
+  }
+
+  public async recWatchHistoryOf(userId?: number): Promise<WatchHistoryList> {
+    const watchHistory = new WatchHistoryList();
+    if (!userId) return watchHistory;
+
+    const history = await this.watchHistoryOf(userId);
+    if (history) watchHistory.history.push(history);
+    await watchHistory.fetch(userId, ...(this.seasons ?? []));
+
+    return watchHistory;
   }
 }
 

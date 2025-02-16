@@ -15,6 +15,7 @@ import PlayButton from '@app/components/Common/PlayButton';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
 import Tag from '@app/components/Common/Tag';
 import Tooltip from '@app/components/Common/Tooltip';
+import WatchProgressIndicator from '@app/components/Common/WatchProgressIndicator';
 import ExternalLinkBlock from '@app/components/ExternalLinkBlock';
 import IssueModal from '@app/components/IssueModal';
 import ManageSlideOver from '@app/components/ManageSlideOver';
@@ -522,7 +523,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
         show={showManager}
       />
       <div className="media-header">
-        <div className="media-poster">
+        <div className="media-poster relative overflow-hidden">
           <CachedImage
             type="tmdb"
             src={
@@ -537,6 +538,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
             height={900}
             priority
           />
+          <WatchProgressIndicator watchProgress={data.watchProgress} />
         </div>
         <div className="media-title">
           <div className="media-status">
@@ -831,7 +833,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                     {({ open }) => (
                       <>
                         <Disclosure.Button
-                          className={`mt-2 flex w-full items-center justify-between space-x-2 border-gray-700 bg-gray-800 px-4 py-2 text-gray-200 ${
+                          className={`relative mt-2 flex w-full items-center justify-between space-x-2 overflow-hidden border-gray-700 bg-gray-800 px-4 py-2 text-gray-200 ${
                             open
                               ? 'rounded-t-md border-t border-l border-r'
                               : 'rounded-md border'
@@ -851,6 +853,11 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                               })}
                             </Badge>
                           </div>
+                          <WatchProgressIndicator
+                            watchProgress={season.watchProgress}
+                            height={3}
+                            badgeAbsolute={false}
+                          />
                           {((!mSeason &&
                             request?.status === MediaRequestStatus.APPROVED) ||
                             mSeason?.status === MediaStatus.PROCESSING) && (

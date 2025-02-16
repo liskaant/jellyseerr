@@ -48,6 +48,7 @@ export interface JellyfinSettings {
   libraries: Library[];
   serverId: string;
   apiKey: string;
+  watchHistory: 'disabled' | 'import' | 'export' | 'full';
 }
 export interface TautulliSettings {
   hostname?: string;
@@ -377,6 +378,7 @@ class Settings {
         libraries: [],
         serverId: '',
         apiKey: '',
+        watchHistory: 'import',
       },
       tautulli: {},
       radarr: [],

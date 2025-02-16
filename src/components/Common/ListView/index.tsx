@@ -58,6 +58,7 @@ const ListView = ({
                 tmdbId={title.tmdbId}
                 type={title.mediaType}
                 isAddedToWatchlist={true}
+                watchProgress={title.watchProgress}
                 canExpand
                 mutateParent={mutateParent}
               />
@@ -85,6 +86,7 @@ const ListView = ({
                     isAddedToWatchlist={
                       title.mediaInfo?.watchlists?.length ?? 0
                     }
+                    watchProgress={title.watchProgress}
                     image={title.posterPath}
                     status={title.mediaInfo?.status}
                     summary={title.overview}
@@ -107,6 +109,7 @@ const ListView = ({
                     isAddedToWatchlist={
                       title.mediaInfo?.watchlists?.length ?? 0
                     }
+                    watchProgress={title.watchProgress}
                     image={title.posterPath}
                     status={title.mediaInfo?.status}
                     summary={title.overview}

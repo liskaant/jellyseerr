@@ -1,5 +1,6 @@
 import TheMovieDb from '@server/api/themoviedb';
 import Media from '@server/entity/Media';
+import { WatchHistoryList } from '@server/entity/WatchHistory';
 import logger from '@server/logger';
 import { mapCollection } from '@server/models/Collection';
 import { Router } from 'express';
@@ -20,7 +21,12 @@ collectionRoutes.get<{ id: string }>('/:id', async (req, res, next) => {
       collection.parts.map((part) => part.id)
     );
 
-    return res.status(200).json(mapCollection(collection, media));
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
+    return res.status(200).json(mapCollection(collection, media, watchHistory));
   } catch (e) {
     logger.debug('Something went wrong retrieving collection', {
       label: 'API',

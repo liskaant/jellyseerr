@@ -9,6 +9,7 @@ import type {
 } from '@server/api/themoviedb/interfaces';
 import { MediaType as MainMediaType } from '@server/constants/media';
 import type Media from '@server/entity/Media';
+import type { WatchHistoryList } from '@server/entity/WatchHistory';
 
 export type MediaType = 'tv' | 'movie' | 'person' | 'collection';
 
@@ -24,6 +25,7 @@ interface SearchResult {
   overview: string;
   originalLanguage: string;
   mediaInfo?: Media;
+  watchProgress: number;
 }
 
 export interface MovieResult extends SearchResult {
@@ -70,7 +72,8 @@ export type Results = MovieResult | TvResult | PersonResult | CollectionResult;
 
 export const mapMovieResult = (
   movieResult: TmdbMovieResult,
-  media?: Media
+  media?: Media,
+  watchHistory?: WatchHistoryList
 ): MovieResult => ({
   id: movieResult.id,
   mediaType: 'movie',
@@ -88,11 +91,13 @@ export const mapMovieResult = (
   backdropPath: movieResult.backdrop_path,
   posterPath: movieResult.poster_path,
   mediaInfo: media,
+  watchProgress: watchHistory?.findMedia(movieResult.id)?.watchProgress ?? 0,
 });
 
 export const mapTvResult = (
   tvResult: TmdbTvResult,
-  media?: Media
+  media?: Media,
+  watchHistory?: WatchHistoryList
 ): TvResult => ({
   id: tvResult.id,
   firstAirDate: tvResult.first_air_date,
@@ -110,6 +115,7 @@ export const mapTvResult = (
   backdropPath: tvResult.backdrop_path,
   posterPath: tvResult.poster_path,
   mediaInfo: media,
+  watchProgress: watchHistory?.findMedia(tvResult.id)?.watchProgress ?? 0,
 });
 
 export const mapCollectionResult = (
@@ -127,7 +133,8 @@ export const mapCollectionResult = (
 });
 
 export const mapPersonResult = (
-  personResult: TmdbPersonResult
+  personResult: TmdbPersonResult,
+  watchHistory?: WatchHistoryList
 ): PersonResult => ({
   id: personResult.id,
   name: personResult.name,
@@ -137,10 +144,10 @@ export const mapPersonResult = (
   profilePath: personResult.profile_path,
   knownFor: personResult.known_for.map((result) => {
     if (result.media_type === 'movie') {
-      return mapMovieResult(result);
+      return mapMovieResult(result, undefined, watchHistory);
     }
 
-    return mapTvResult(result);
+    return mapTvResult(result, undefined, watchHistory);
   }),
 });
 
@@ -151,7 +158,8 @@ export const mapSearchResults = (
     | TmdbPersonResult
     | TmdbCollectionResult
   )[],
-  media?: Media[]
+  media?: Media[],
+  watchHistory?: WatchHistoryList
 ): Results[] =>
   results.map((result) => {
     switch (result.media_type) {
@@ -161,7 +169,8 @@ export const mapSearchResults = (
           media?.find(
             (req) =>
               req.tmdbId === result.id && req.mediaType === MainMediaType.MOVIE
-          )
+          ),
+          watchHistory
         );
       case 'tv':
         return mapTvResult(
@@ -169,7 +178,8 @@ export const mapSearchResults = (
           media?.find(
             (req) =>
               req.tmdbId === result.id && req.mediaType === MainMediaType.TV
-          )
+          ),
+          watchHistory
         );
       case 'collection':
         return mapCollectionResult(result);

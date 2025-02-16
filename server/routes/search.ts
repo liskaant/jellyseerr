@@ -1,6 +1,7 @@
 import TheMovieDb from '@server/api/themoviedb';
 import type { TmdbSearchMultiResponse } from '@server/api/themoviedb/interfaces';
 import Media from '@server/entity/Media';
+import { WatchHistoryList } from '@server/entity/WatchHistory';
 import { findSearchProvider } from '@server/lib/search';
 import logger from '@server/logger';
 import { mapSearchResults } from '@server/models/Search';
@@ -38,11 +39,16 @@ searchRoutes.get('/', async (req, res, next) => {
       results.results.map((result) => result.id)
     );
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
     return res.status(200).json({
       page: results.page,
       totalPages: results.total_pages,
       totalResults: results.total_results,
-      results: mapSearchResults(results.results, media),
+      results: mapSearchResults(results.results, media, watchHistory),
     });
   } catch (e) {
     logger.debug('Something went wrong retrieving search results', {

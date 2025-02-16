@@ -5,6 +5,7 @@ import TheMovieDb from '@server/api/themoviedb';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import { WatchHistoryList } from '@server/entity/WatchHistory';
 import { Watchlist } from '@server/entity/Watchlist';
 import logger from '@server/logger';
 import { mapMovieDetails } from '@server/models/Movie';
@@ -33,7 +34,13 @@ movieRoutes.get('/:id', async (req, res, next) => {
       },
     });
 
-    const data = mapMovieDetails(tmdbMovie, media, onUserWatchlist);
+    const watchHistory = await media?.watchHistoryOf(req.user?.id);
+    const data = mapMovieDetails(
+      tmdbMovie,
+      media,
+      onUserWatchlist,
+      watchHistory
+    );
 
     // TMDB issue where it doesnt fallback to English when no overview is available in requested locale.
     if (!data.overview) {
@@ -70,6 +77,11 @@ movieRoutes.get('/:id/recommendations', async (req, res, next) => {
       results.results.map((result) => result.id)
     );
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
     return res.status(200).json({
       page: results.page,
       totalPages: results.total_pages,
@@ -80,7 +92,8 @@ movieRoutes.get('/:id/recommendations', async (req, res, next) => {
           media.find(
             (req) =>
               req.tmdbId === result.id && req.mediaType === MediaType.MOVIE
-          )
+          ),
+          watchHistory
         )
       ),
     });
@@ -112,6 +125,11 @@ movieRoutes.get('/:id/similar', async (req, res, next) => {
       results.results.map((result) => result.id)
     );
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
     return res.status(200).json({
       page: results.page,
       totalPages: results.total_pages,
@@ -122,7 +140,8 @@ movieRoutes.get('/:id/similar', async (req, res, next) => {
           media.find(
             (req) =>
               req.tmdbId === result.id && req.mediaType === MediaType.MOVIE
-          )
+          ),
+          watchHistory
         )
       ),
     });

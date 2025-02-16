@@ -14,6 +14,7 @@ import type { PlayButtonLink } from '@app/components/Common/PlayButton';
 import PlayButton from '@app/components/Common/PlayButton';
 import Tag from '@app/components/Common/Tag';
 import Tooltip from '@app/components/Common/Tooltip';
+import WatchProgressIndicator from '@app/components/Common/WatchProgressIndicator';
 import ExternalLinkBlock from '@app/components/ExternalLinkBlock';
 import IssueModal from '@app/components/IssueModal';
 import ManageSlideOver from '@app/components/ManageSlideOver';
@@ -478,7 +479,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
         isUpdating={isBlacklistUpdating}
       />
       <div className="media-header">
-        <div className="media-poster">
+        <div className="media-poster relative overflow-hidden">
           <CachedImage
             type="tmdb"
             src={
@@ -493,6 +494,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
             height={900}
             priority
           />
+          <WatchProgressIndicator watchProgress={data.watchProgress} />
         </div>
         <div className="media-title">
           <div className="media-status">

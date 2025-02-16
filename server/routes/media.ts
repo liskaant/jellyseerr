@@ -7,6 +7,7 @@ import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { User } from '@server/entity/User';
 import type {
+  MediaResult,
   MediaResultsResponse,
   MediaWatchDataResponse,
 } from '@server/interfaces/api/mediaInterfaces';
@@ -76,6 +77,15 @@ mediaRoutes.get('/', async (req, res, next) => {
       take: pageSize,
       skip,
     });
+
+    const results: MediaResult[] = [];
+    for (const item of media) {
+      const result: MediaResult = item;
+      result.watchProgress =
+        (await item.watchHistoryOf(req.user?.id))?.watchProgress ?? 0;
+      results.push(result);
+    }
+
     return res.status(200).json({
       pageInfo: {
         pages: Math.ceil(mediaCount / pageSize),
@@ -83,7 +93,7 @@ mediaRoutes.get('/', async (req, res, next) => {
         results: mediaCount,
         page: Math.ceil(skip / pageSize) + 1,
       },
-      results: media,
+      results,
     } as MediaResultsResponse);
   } catch (e) {
     next({ status: 500, message: e.message });

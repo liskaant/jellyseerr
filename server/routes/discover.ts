@@ -6,9 +6,11 @@ import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { User } from '@server/entity/User';
+import { WatchHistoryList } from '@server/entity/WatchHistory';
 import { Watchlist } from '@server/entity/Watchlist';
 import type {
   GenreSliderItem,
+  WatchlistItem,
   WatchlistResponse,
 } from '@server/interfaces/api/discoverInterfaces';
 import { getSettings } from '@server/lib/settings';
@@ -122,6 +124,11 @@ discoverRoutes.get('/movies', async (req, res, next) => {
       );
     }
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
     return res.status(200).json({
       page: data.page,
       totalPages: data.total_pages,
@@ -133,7 +140,8 @@ discoverRoutes.get('/movies', async (req, res, next) => {
           media.find(
             (req) =>
               req.tmdbId === result.id && req.mediaType === MediaType.MOVIE
-          )
+          ),
+          watchHistory
         )
       ),
     });
@@ -176,6 +184,11 @@ discoverRoutes.get<{ language: string }>(
         data.results.map((result) => result.id)
       );
 
+      const watchHistory = await new WatchHistoryList().fetch(
+        req.user?.id,
+        ...media
+      );
+
       return res.status(200).json({
         page: data.page,
         totalPages: data.total_pages,
@@ -187,7 +200,8 @@ discoverRoutes.get<{ language: string }>(
             media.find(
               (req) =>
                 req.tmdbId === result.id && req.mediaType === MediaType.MOVIE
-            )
+            ),
+            watchHistory
           )
         ),
       });
@@ -234,6 +248,11 @@ discoverRoutes.get<{ genreId: string }>(
         data.results.map((result) => result.id)
       );
 
+      const watchHistory = await new WatchHistoryList().fetch(
+        req.user?.id,
+        ...media
+      );
+
       return res.status(200).json({
         page: data.page,
         totalPages: data.total_pages,
@@ -245,7 +264,8 @@ discoverRoutes.get<{ genreId: string }>(
             media.find(
               (req) =>
                 req.tmdbId === result.id && req.mediaType === MediaType.MOVIE
-            )
+            ),
+            watchHistory
           )
         ),
       });
@@ -282,6 +302,11 @@ discoverRoutes.get<{ studioId: string }>(
         data.results.map((result) => result.id)
       );
 
+      const watchHistory = await new WatchHistoryList().fetch(
+        req.user?.id,
+        ...media
+      );
+
       return res.status(200).json({
         page: data.page,
         totalPages: data.total_pages,
@@ -293,7 +318,8 @@ discoverRoutes.get<{ studioId: string }>(
             media.find(
               (med) =>
                 med.tmdbId === result.id && med.mediaType === MediaType.MOVIE
-            )
+            ),
+            watchHistory
           )
         ),
       });
@@ -332,6 +358,10 @@ discoverRoutes.get('/movies/upcoming', async (req, res, next) => {
       data.results.map((result) => result.id)
     );
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
     return res.status(200).json({
       page: data.page,
       totalPages: data.total_pages,
@@ -342,7 +372,8 @@ discoverRoutes.get('/movies/upcoming', async (req, res, next) => {
           media.find(
             (med) =>
               med.tmdbId === result.id && med.mediaType === MediaType.MOVIE
-          )
+          ),
+          watchHistory
         )
       ),
     });
@@ -405,6 +436,11 @@ discoverRoutes.get('/tv', async (req, res, next) => {
       );
     }
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
     return res.status(200).json({
       page: data.page,
       totalPages: data.total_pages,
@@ -415,7 +451,8 @@ discoverRoutes.get('/tv', async (req, res, next) => {
           result,
           media.find(
             (med) => med.tmdbId === result.id && med.mediaType === MediaType.TV
-          )
+          ),
+          watchHistory
         )
       ),
     });
@@ -458,6 +495,11 @@ discoverRoutes.get<{ language: string }>(
         data.results.map((result) => result.id)
       );
 
+      const watchHistory = await new WatchHistoryList().fetch(
+        req.user?.id,
+        ...media
+      );
+
       return res.status(200).json({
         page: data.page,
         totalPages: data.total_pages,
@@ -469,7 +511,8 @@ discoverRoutes.get<{ language: string }>(
             media.find(
               (med) =>
                 med.tmdbId === result.id && med.mediaType === MediaType.TV
-            )
+            ),
+            watchHistory
           )
         ),
       });
@@ -516,6 +559,11 @@ discoverRoutes.get<{ genreId: string }>(
         data.results.map((result) => result.id)
       );
 
+      const watchHistory = await new WatchHistoryList().fetch(
+        req.user?.id,
+        ...media
+      );
+
       return res.status(200).json({
         page: data.page,
         totalPages: data.total_pages,
@@ -527,7 +575,8 @@ discoverRoutes.get<{ genreId: string }>(
             media.find(
               (med) =>
                 med.tmdbId === result.id && med.mediaType === MediaType.TV
-            )
+            ),
+            watchHistory
           )
         ),
       });
@@ -564,6 +613,11 @@ discoverRoutes.get<{ networkId: string }>(
         data.results.map((result) => result.id)
       );
 
+      const watchHistory = await new WatchHistoryList().fetch(
+        req.user?.id,
+        ...media
+      );
+
       return res.status(200).json({
         page: data.page,
         totalPages: data.total_pages,
@@ -575,7 +629,8 @@ discoverRoutes.get<{ networkId: string }>(
             media.find(
               (med) =>
                 med.tmdbId === result.id && med.mediaType === MediaType.TV
-            )
+            ),
+            watchHistory
           )
         ),
       });
@@ -614,6 +669,11 @@ discoverRoutes.get('/tv/upcoming', async (req, res, next) => {
       data.results.map((result) => result.id)
     );
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
     return res.status(200).json({
       page: data.page,
       totalPages: data.total_pages,
@@ -623,7 +683,8 @@ discoverRoutes.get('/tv/upcoming', async (req, res, next) => {
           result,
           media.find(
             (med) => med.tmdbId === result.id && med.mediaType === MediaType.TV
-          )
+          ),
+          watchHistory
         )
       ),
     });
@@ -653,6 +714,11 @@ discoverRoutes.get('/trending', async (req, res, next) => {
       data.results.map((result) => result.id)
     );
 
+    const watchHistory = await new WatchHistoryList().fetch(
+      req.user?.id,
+      ...media
+    );
+
     return res.status(200).json({
       page: data.page,
       totalPages: data.total_pages,
@@ -664,10 +730,11 @@ discoverRoutes.get('/trending', async (req, res, next) => {
               media.find(
                 (med) =>
                   med.tmdbId === result.id && med.mediaType === MediaType.MOVIE
-              )
+              ),
+              watchHistory
             )
           : isPerson(result)
-          ? mapPersonResult(result)
+          ? mapPersonResult(result, watchHistory)
           : isCollection(result)
           ? mapCollectionResult(result)
           : mapTvResult(
@@ -675,7 +742,8 @@ discoverRoutes.get('/trending', async (req, res, next) => {
               media.find(
                 (med) =>
                   med.tmdbId === result.id && med.mediaType === MediaType.TV
-              )
+              ),
+              watchHistory
             )
       ),
     });
@@ -708,6 +776,11 @@ discoverRoutes.get<{ keywordId: string }>(
         data.results.map((result) => result.id)
       );
 
+      const watchHistory = await new WatchHistoryList().fetch(
+        req.user?.id,
+        ...media
+      );
+
       return res.status(200).json({
         page: data.page,
         totalPages: data.total_pages,
@@ -718,7 +791,8 @@ discoverRoutes.get<{ keywordId: string }>(
             media.find(
               (med) =>
                 med.tmdbId === result.id && med.mediaType === MediaType.MOVIE
-            )
+            ),
+            watchHistory
           )
         ),
       });
@@ -839,7 +913,7 @@ discoverRoutes.get<Record<string, unknown>, WatchlistResponse>(
 
     if (activeUser && !activeUser?.plexToken) {
       // Non-Plex users can only see their own watchlist
-      const [result, total] = await getRepository(Watchlist).findAndCount({
+      const [watchlist, total] = await getRepository(Watchlist).findAndCount({
         where: { requestedBy: { id: activeUser?.id } },
         relations: {
           /*requestedBy: true,media:true*/
@@ -848,12 +922,21 @@ discoverRoutes.get<Record<string, unknown>, WatchlistResponse>(
         take: itemsPerPage,
         skip: offset,
       });
+
+      const results: WatchlistItem[] = [];
+      for (const item of watchlist) {
+        const result: WatchlistItem = item;
+        result.watchProgress =
+          (await item.media.watchHistoryOf(req.user?.id))?.watchProgress ?? 0;
+        results.push(result);
+      }
+
       if (total) {
         return res.json({
           page: page,
           totalPages: Math.ceil(total / itemsPerPage),
           totalResults: total,
-          results: result,
+          results,
         });
       }
     }

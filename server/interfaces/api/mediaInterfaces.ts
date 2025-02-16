@@ -2,8 +2,12 @@ import type Media from '@server/entity/Media';
 import type { User } from '@server/entity/User';
 import type { PaginatedResponse } from './common';
 
+export interface MediaResult extends Media {
+  watchProgress?: number;
+}
+
 export interface MediaResultsResponse extends PaginatedResponse {
-  results: Media[];
+  results: MediaResult[];
 }
 
 export interface MediaWatchDataResponse {

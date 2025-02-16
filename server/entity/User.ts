@@ -30,6 +30,7 @@ import { MediaRequest } from './MediaRequest';
 import SeasonRequest from './SeasonRequest';
 import { UserPushSubscription } from './UserPushSubscription';
 import { UserSettings } from './UserSettings';
+import { WatchHistory } from './WatchHistory';
 
 @Entity()
 export class User {
@@ -112,6 +113,9 @@ export class User {
 
   @OneToMany(() => Watchlist, (watchlist) => watchlist.requestedBy)
   public watchlists: Watchlist[];
+
+  @OneToMany(() => WatchHistory, (history: WatchHistory) => history.user)
+  public watchHistory: Promise<WatchHistory[]>;
 
   @Column({ nullable: true })
   public movieQuotaLimit?: number;

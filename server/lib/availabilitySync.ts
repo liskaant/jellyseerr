@@ -13,6 +13,7 @@ import MediaRequest from '@server/entity/MediaRequest';
 import type Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
 import { User } from '@server/entity/User';
+import { WatchHistory } from '@server/entity/WatchHistory';
 import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -530,8 +531,10 @@ class AvailabilitySync {
     is4k: boolean,
     mediaServerType: MediaServerType
   ): Promise<void> {
+    const settings = getSettings();
     const mediaRepository = getRepository(Media);
     const requestRepository = getRepository(MediaRequest);
+    const historyRepository = getRepository(WatchHistory);
 
     try {
       // Find all related requests only if
@@ -607,6 +610,35 @@ class AvailabilitySync {
       );
 
       await mediaRepository.save({ media, ...media });
+
+      // Watch history: If a movie or an entire show gets removed from Jellyfin,
+      // we need to mark all watch histories as "manual" to possibly re-import
+      // them into Jellyfin if the media is re-added at some point.
+      //
+      // If just a part of a show is removed (e.g. a single episode), the history
+      // will be processed by the Jellyfin scanner since the parent show still exists.
+      if (
+        settings.jellyfin.watchHistory !== 'disabled' &&
+        mediaServerType === MediaServerType.JELLYFIN
+      ) {
+        for (const history of await media.watchHistory) {
+          if (history.source === 'jellyfin') {
+            history.source = 'manual';
+            await historyRepository.save(history);
+          }
+        }
+
+        for (const season of media.seasons ?? []) {
+          for (const episode of (await season.episodes) ?? []) {
+            for (const history of await episode.watchHistory) {
+              if (history.source === 'jellyfin') {
+                history.source = 'manual';
+                await historyRepository.save(history);
+              }
+            }
+          }
+        }
+      }
 
       // Only delete media request if type is movie.
       // Type tv request deletion is handled

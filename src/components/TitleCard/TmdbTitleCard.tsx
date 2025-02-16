@@ -12,6 +12,7 @@ export interface TmdbTitleCardProps {
   type: 'movie' | 'tv';
   canExpand?: boolean;
   isAddedToWatchlist?: boolean;
+  watchProgress?: number;
   mutateParent?: () => void;
 }
 
@@ -26,6 +27,7 @@ const TmdbTitleCard = ({
   type,
   canExpand,
   isAddedToWatchlist = false,
+  watchProgress = 0,
   mutateParent,
 }: TmdbTitleCardProps) => {
   const { hasPermission } = useUser();
@@ -65,6 +67,7 @@ const TmdbTitleCard = ({
       isAddedToWatchlist={
         title.mediaInfo?.watchlists?.length || isAddedToWatchlist
       }
+      watchProgress={watchProgress}
       image={title.posterPath}
       status={title.mediaInfo?.status}
       summary={title.overview}
@@ -82,6 +85,7 @@ const TmdbTitleCard = ({
       isAddedToWatchlist={
         title.mediaInfo?.watchlists?.length || isAddedToWatchlist
       }
+      watchProgress={watchProgress}
       image={title.posterPath}
       status={title.mediaInfo?.status}
       summary={title.overview}

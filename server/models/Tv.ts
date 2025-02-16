@@ -7,6 +7,7 @@ import type {
   TmdbTvSeasonResult,
 } from '@server/api/themoviedb/interfaces';
 import type Media from '@server/entity/Media';
+import type { WatchHistoryList } from '@server/entity/WatchHistory';
 import type {
   Cast,
   Crew,
@@ -38,6 +39,7 @@ interface Episode {
   stillPath?: string;
   voteAverage: number;
   voteCount: number;
+  watchProgress: number;
 }
 
 interface Season {
@@ -48,6 +50,7 @@ interface Season {
   overview: string;
   posterPath?: string;
   seasonNumber: number;
+  watchProgress: number;
 }
 
 export interface SeasonWithEpisodes extends Omit<Season, 'episodeCount'> {
@@ -112,9 +115,13 @@ export interface TvDetails {
   mediaInfo?: Media;
   watchProviders?: WatchProviders[];
   onUserWatchlist?: boolean;
+  watchProgress: number;
 }
 
-const mapEpisodeResult = (episode: TmdbTvEpisodeResult): Episode => ({
+const mapEpisodeResult = (
+  episode: TmdbTvEpisodeResult,
+  watchHistory?: WatchHistoryList
+): Episode => ({
   id: episode.id,
   airDate: episode.air_date,
   episodeNumber: episode.episode_number,
@@ -126,9 +133,19 @@ const mapEpisodeResult = (episode: TmdbTvEpisodeResult): Episode => ({
   voteAverage: episode.vote_average,
   voteCount: episode.vote_cuont,
   stillPath: episode.still_path,
+  watchProgress:
+    watchHistory?.findEpisode(
+      episode.show_id,
+      episode.season_number,
+      episode.episode_number
+    )?.watchProgress ?? 0,
 });
 
-const mapSeasonResult = (season: TmdbTvSeasonResult): Season => ({
+const mapSeasonResult = (
+  show: TmdbTvDetails,
+  season: TmdbTvSeasonResult,
+  watchHistory?: WatchHistoryList
+): Season => ({
   airDate: season.air_date,
   episodeCount: season.episode_count,
   id: season.id,
@@ -136,19 +153,25 @@ const mapSeasonResult = (season: TmdbTvSeasonResult): Season => ({
   overview: season.overview,
   seasonNumber: season.season_number,
   posterPath: season.poster_path,
+  watchProgress:
+    watchHistory?.findSeason(show.id, season.season_number)?.watchProgress ?? 0,
 });
 
 export const mapSeasonWithEpisodes = (
-  season: TmdbSeasonWithEpisodes
+  show: TmdbTvDetails,
+  season: TmdbSeasonWithEpisodes,
+  watchHistory?: WatchHistoryList
 ): SeasonWithEpisodes => ({
   airDate: season.air_date,
-  episodes: season.episodes.map(mapEpisodeResult),
+  episodes: season.episodes.map((e) => mapEpisodeResult(e, watchHistory)),
   externalIds: mapExternalIds(season.external_ids),
   id: season.id,
   name: season.name,
   overview: season.overview,
   seasonNumber: season.season_number,
   posterPath: season.poster_path,
+  watchProgress:
+    watchHistory?.findSeason(show.id, season.season_number)?.watchProgress ?? 0,
 });
 
 export const mapNetwork = (network: TmdbNetwork): TvNetwork => ({
@@ -163,7 +186,8 @@ export const mapNetwork = (network: TmdbNetwork): TvNetwork => ({
 export const mapTvDetails = (
   show: TmdbTvDetails,
   media?: Media,
-  userWatchlist?: boolean
+  userWatchlist?: boolean,
+  watchHistory?: WatchHistoryList
 ): TvDetails => ({
   createdBy: show.created_by,
   episodeRunTime: show.episode_run_time,
@@ -201,17 +225,19 @@ export const mapTvDetails = (
     iso_639_1: language.iso_639_1,
     name: language.name,
   })),
-  seasons: show.seasons.map(mapSeasonResult),
+  seasons: show.seasons.map((season) =>
+    mapSeasonResult(show, season, watchHistory)
+  ),
   status: show.status,
   type: show.type,
   voteAverage: show.vote_average,
   voteCount: show.vote_count,
   backdropPath: show.backdrop_path,
   lastEpisodeToAir: show.last_episode_to_air
-    ? mapEpisodeResult(show.last_episode_to_air)
+    ? mapEpisodeResult(show.last_episode_to_air, watchHistory)
     : undefined,
   nextEpisodeToAir: show.next_episode_to_air
-    ? mapEpisodeResult(show.next_episode_to_air)
+    ? mapEpisodeResult(show.next_episode_to_air, watchHistory)
     : undefined,
   posterPath: show.poster_path,
   credits: {
@@ -226,4 +252,5 @@ export const mapTvDetails = (
   mediaInfo: media,
   watchProviders: mapWatchProviders(show['watch/providers']?.results ?? {}),
   onUserWatchlist: userWatchlist,
+  watchProgress: watchHistory?.findMedia(show.id)?.watchProgress ?? 0,
 });
